@@ -5,7 +5,7 @@
 ####################################################################################################
 
 import argparse
-from config import *
+#from config import *
 
 class Parser:
 

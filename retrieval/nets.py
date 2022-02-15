@@ -7,7 +7,7 @@
 import math
 import torch
 import numpy as np
-from config import *
+#from config import *
 from misc.utils import *
 import torch.nn.functional as F
 

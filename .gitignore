@@ -1,0 +1,7 @@
+*.py[cod]
+*__pycache__
+*$py.class
+*.pt
+*.out
+*.pyc
+*.txt
