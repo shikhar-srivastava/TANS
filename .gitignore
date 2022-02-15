@@ -1,0 +1,10 @@
+*.py[cod]
+*__pycache__
+*$py.class
+*.pt
+*.out
+*.pyc
+*.txt
+scripts/train.sh
+scripts/test.sh
+
