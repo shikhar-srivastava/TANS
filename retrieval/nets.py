@@ -26,10 +26,10 @@ class ModelEncoder(torch.nn.Module):
     def __init__(self, args):
         super(ModelEncoder, self).__init__()  
         self.args = args
-        self.fc = torch.nn.Linear(45+1536, self.args.n_dims) 
+        self.fc = torch.nn.Linear(2048, self.args.n_dims) #torch.nn.Linear(45+1536, self.args.n_dims) 
             
-    def forward(self, v_t, v_f):
-        m = torch.cat([v_t, v_f], 1)
+    def forward(self, v_f):
+        m = v_f
         m = F.normalize(m)
         m = self.fc(m)
         m = self.l2norm(m)

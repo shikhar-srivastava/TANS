@@ -11,9 +11,9 @@
 /nfs/users/ext_shikhar.srivastava/miniconda3/envs/ofa/bin/python ../main.py --gpu 0 \
                    --mode train \
                    --batch-size 140 \
-                   --n-epochs 10000 \
-                   --base-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes\
-                   --data-path /nfs/projects/mbzuai/shikhar/datasets/ofa/data_path\
-                   --model-zoo /nfs/projects/mbzuai/shikhar/datasets/ofa/model_zoo/p_mod_zoo.pt\
+                   --n-epochs 2500 \
+                   --base-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/ours\
+                   --data-path /nfs/projects/mbzuai/shikhar/datasets/ofa/our_data_path\
+                   --model-zoo /nfs/projects/mbzuai/shikhar/datasets/ofa/our_mod_zoo.pt\
                    --model-zoo-raw /nfs/projects/mbzuai/shikhar/datasets/ofa/model_zoo_raw\
-                   --seed 777 
+                   --seed 777

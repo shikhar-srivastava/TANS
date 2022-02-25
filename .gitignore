@@ -8,3 +8,5 @@
 scripts/train.sh
 scripts/test.sh
 
+*/__pycache__/*
+ofa/imagenet_classification/__pycache__/*

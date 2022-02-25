@@ -3,8 +3,6 @@
 # Wonyong Jeong, Hayeon Lee, Geon Park, Eunyoung Hyung, Jinheon Baek, Sung Ju Hwang
 # github: https://github.com/wyjeong/TANS, email: wyjeong@kaist.ac.kr
 ####################################################################################################
-# Params for Jobs
-# n-epochs 100000
 
 import os
 import sys
@@ -15,7 +13,7 @@ import torch
 import torch.nn.functional as F
 from pathlib import Path
 from datetime import datetime
-#from ofa.model_zoo import ofa_net
+from ofa.model_zoo import ofa_net
 from retrieval.loss import HardNegativeContrastiveLoss
 from retrieval.measure import compute_recall
 
@@ -47,7 +45,6 @@ class Retrieval:
     def init_loaders(self):
         print('==> loading data loaders ... ')
         self.tr_dataset, self.tr_loader = get_loader(self.args, mode='train')
-        #print('Done! init_loaders')
         self.te_dataset, self.te_loader = get_loader(self.args, mode='test')
 
     def init_models(self):
@@ -69,7 +66,6 @@ class Retrieval:
             'mean': [], 'median': [], 'mse': []}
         
         max_recall = 0
-        lowest_mse = 1000.0
         start_time = time.time()
         for curr_epoch in range(self.args.n_epochs):
             ep_time = time.time()
@@ -88,11 +84,11 @@ class Retrieval:
             tr_lss = lss.item()
             te_lss, R, medr, meanr, mse = self.evaluate()
             print(  f'ep:{self.curr_epoch}, ' +
-                    f'mse:{mse:.5f} ' +
-                    f'tr_lss: {tr_lss:.5f}, ' +
-                    f'te_lss:{te_lss:.5f}, ' +
-                    f'R@1 {R[1]:.3f} ({max_recall:.2f}), R@5 {R[5]:.2f}, R@10 {R[10]:.2f}, R@50 {R[50]:.2f} ' +
-                    f'mean {meanr:.3f}, median {medr:.3f} ({time.time()-ep_time:.3f})')
+                    f'mse:{mse:.3f} ' +
+                    f'tr_lss: {tr_lss:.3f}, ' +
+                    f'te_lss:{te_lss:.3f}, ' +
+                    f'R@1 {R[1]:.1f} ({max_recall:.1f}), R@5 {R[5]:.1f}, R@10 {R[10]:.1f}, R@50 {R[50]:.1f} ' +
+                    f'mean {meanr:.1f}, median {medr:.1f} ({time.time()-ep_time:.2f})')
 
             self.scores['tr_lss'].append(tr_lss)
             self.scores['te_lss'].append(te_lss)
@@ -108,10 +104,6 @@ class Retrieval:
             if R[1] > max_recall:
                 max_recall = R[1]
                 self.save_model(True, curr_epoch, R, medr, meanr, mse)
-            elif R[1] == max_recall:
-                if mse < lowest_mse:
-                    lowest_mse = mse
-                    self.save_model(True, curr_epoch, R, medr, meanr, mse)
             
         self.save_model(False, curr_epoch, R, medr, meanr, mse)
         self.save_scroes()
@@ -121,7 +113,7 @@ class Retrieval:
         acc = acc.unsqueeze(1).type(torch.FloatTensor).to(self.device)
         query = [d.to(self.device) for d in query]
         q_emb = self.enc_q(query) 
-        m_emb = self.enc_m(f_emb.to(self.device))
+        m_emb = self.enc_m(topol.to(self.device), f_emb.to(self.device))
         a_hat = self.predictor(q_emb, m_emb)
         lss = self.criterion(q_emb, m_emb)
         lss_mse = self.criterion_mse(a_hat, acc)
@@ -183,18 +175,20 @@ class Retrieval:
     def store_model_embeddings(self):
         print('==> storing model embeddings ... ')
         start_time = time.time()
-        embeddings = {'dataset': [],'m_emb': [],'acc': [],'n_params': []}
+        embeddings = {'dataset': [],'m_emb': [],'topol': [],'acc': [],'n_params': []}
         
         for i, dataset in enumerate(self.model_zoo['dataset']): 
             emb_time = time.time()
             acc = self.model_zoo['acc'][i]
             n_params = self.model_zoo['n_params'][i]
-            #topol = self.model_zoo['topol'][i]
+            topol = self.model_zoo['topol'][i]
             f_emb = self.model_zoo['f_emb'][i]
             with torch.no_grad():
-                m_emb = self.enc_m(f_emb.unsqueeze(0).to(self.device))
+                m_emb = self.enc_m(
+                    torch.Tensor(topol).unsqueeze(0).to(self.device), f_emb.unsqueeze(0).to(self.device))
             embeddings['dataset'].append(dataset) 
             embeddings['m_emb'].append(m_emb) 
+            embeddings['topol'].append(topol)
             embeddings['acc'].append(acc)
             embeddings['n_params'].append(n_params)
 

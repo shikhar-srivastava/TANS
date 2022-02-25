@@ -87,6 +87,8 @@ class MetaTrainDataset(Dataset):
         start_time = time.time()
         self.contents = []
         self.dataset_list = set(self.model_zoo['dataset'])
+        print('Length of model_zoo: ', len(self.model_zoo))
+
         for dataset in self.dataset_list:
             models = []
             cnt = 0
@@ -94,7 +96,7 @@ class MetaTrainDataset(Dataset):
                 if dataset == _dataset:
                     cnt+= 1
                     if cnt <= self.args.n_nets:
-                        ############################################
+                        '''############################################
                         topol = self.model_zoo['topol'][idx]
                         ks = topol[:20] 
                         e = topol[20:40]
@@ -105,15 +107,17 @@ class MetaTrainDataset(Dataset):
                         ks = torch.tensor(ks) * tmp
                         e = torch.tensor(e) * tmp
                         topol = [int(t) for t in [*ks.tolist(), *e.tolist(), *d]]
-                        ############################################
-                        models.append({
-                            'acc': self.model_zoo['acc'][idx],
-                            'topol': self.model_zoo['topol'][idx],
+                        ############################################'''
+                        
+                        models.append({'acc': self.model_zoo['f1'][idx], #self.model_zoo['acc'][idx],
+                            'topol': [-1], #self.model_zoo['topol'][idx],
                             'f_emb': self.model_zoo['f_emb'][idx],
-                            'n_params': self.model_zoo['n_params'][idx],
+                            'n_params': [-1], #self.model_zoo['n_params'][idx],
                         })
             self.contents.append((dataset, models))
-        print(f"{len(self.contents)*self.args.n_nets} pairs loaded ({time.time()-start_time:.3f}s) ")
+        #print('Length of contents: ', len(self.contents))
+        #print(self.contents)
+        #print(f"{len(self.contents)*self.args.n_nets} pairs loaded ({time.time()-start_time:.3f}s) ")
 
     def __len__(self):
         return len(self.contents) 
