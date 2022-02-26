@@ -149,13 +149,12 @@ class ModelEmbeddings():
 
 class DatasetEmbeddings():
 
-    def __init__(self, category = 'raw', n_samples = 20):
+    def __init__(self, category = 'raw'):
         self.category = category
         self.resnet = torchvision.models.resnet18(pretrained=True)
-        self.activations = {}
-        self.n_samples = n_samples
+        
 
-    def get_dataset_object(self, dataset, type = 'CT'):
+    def get_dataset_object(self, dataset, type = 'CT', num_channels = 1, train_split = True):
 
         assert type in ['CT', 'XRAY', 'MRI'], 'Dataset type not supported'
         if type == 'CT':
@@ -169,8 +168,8 @@ class DatasetEmbeddings():
             dataset_object = CT_Dataset(
                 path=path,
                 name=dataset,
-                train=True,
-                num_channels=1,
+                train=train_split,
+                num_channels=num_channels,
                 preprocess=transforms,
                 split_path=train_split_path,
             )
@@ -204,11 +203,12 @@ class DatasetEmbeddings():
 
     
     def x_embedding(self, x):
+        activations = {}
          #=============================================================================
         # Hook function to get the activations of the model
         def get_activation(name):
             def hook(model, input, output):
-                self.activations[name] = output.detach()
+                activations[name] = output.detach()
             return hook
         #=============================================================================
         # Get the embeddings
@@ -222,24 +222,49 @@ class DatasetEmbeddings():
                 return None
 
             _ = self.resnet(x)
-            f_emb = self.activations['avgpool']
+            f_emb = activations['avgpool']
             handler.remove() # Remove the hook
         return f_emb.squeeze()
 
-    def embed_dataset(self, dataset, type):
-        dataset_object = self.get_dataset_object(dataset, type)
+    def embed_dataset_single(self, dataset, n_samples):
+        dataset_object = self.get_dataset_object(dataset, num_channels=3)
+        train_loader = torch.utils.data.DataLoader(dataset_object, batch_size=n_samples, shuffle=True)
+        x_train, _ = train_loader.__iter__().__next__()
+        embed = self.x_embedding(x_train)
+        return embed
+
+    def meta_test_embed_datasets(self, n_samples):
+        data_train = {}
+        for dataset in tqdm.tqdm(list(set(CT_DATASETS))):
+            query_embed = self.embed_dataset_single(dataset, n_samples=n_samples)
+            task = dataset
+            clss = self.get_dataset_object(dataset, type = 'CT').classes
+            nclss = len(clss)
+            data_train[task] = {'task': task, 'clss': clss, 'nclss': nclss, 'query': query_embed}
+        return data_train
+
+    def embed_dataset(self, dataset, type, n_samples):
+        train_dataset_object = self.get_dataset_object(dataset, type, train_split = True)
+        test_dataset_object = self.get_dataset_object(dataset, type, train_split=False)
         train_loader = torch.utils.data.DataLoader(
-                                        dataset_object,
-                                        batch_size=self.n_samples,
+                                        train_dataset_object,
+                                        batch_size=n_samples,
                                         shuffle=True
                                     )
+        test_loader = torch.utils.data.DataLoader(
+                                        test_dataset_object,
+                                        batch_size=n_samples,
+                                        shuffle=True
+                                    )
+        
         if type == 'CT':
             x_train,y_train = train_loader.__iter__().__next__()
-            x_test, y_test = train_loader.__iter__().__next__()
+            x_test, y_test = test_loader.__iter__().__next__()
             del train_loader
+            del test_loader
         elif type == 'XRAY':
             _train = train_loader.__iter__().__next__()
-            _test = train_loader.__iter__().__next__()
+            _test = test_loader.__iter__().__next__()
             del train_loader
             x_train = _train['img']
             x_test = _test['img']
@@ -255,7 +280,7 @@ class DatasetEmbeddings():
 
         return x_train_embed, y_train, x_test_embed, y_test
 
-    def parse_and_embed(self, no_xray = True):
+    def parse_and_embed(self, n_samples, no_xray = True):
         if no_xray:
             datasets = list(set(CT_DATASETS))
         else:
@@ -265,20 +290,42 @@ class DatasetEmbeddings():
         for dataset in tqdm.tqdm(datasets):
             print(dataset)
             if dataset in XRAY_DATASETS:
-                x_train_embed, y_train, x_test_embed, y_test = self.embed_dataset(dataset = dataset, type = 'XRAY')
+                x_train_embed, y_train, x_test_embed, y_test = self.embed_dataset(dataset = dataset, type = 'XRAY', n_samples = n_samples)
                 task = dataset
                 clss = self.get_dataset_object(dataset, type = 'XRAY').pathologies
                 nclss = len(clss)
                 data_train[dataset] = {'task': task, 'clss': clss, 'nclss':nclss, 'x_query_train':x_train_embed, 'y_query_train':y_train, \
                     'x_query_test':x_test_embed, 'y_query_test':y_test, 'type': 'XRAY', 'task_type':'classification'}
             else:
-                x_train_embed, y_train, x_test_embed, y_test = self.embed_dataset(dataset = dataset, type = 'CT')
+                x_train_embed, y_train, x_test_embed, y_test = self.embed_dataset(dataset = dataset, type = 'CT', n_samples = n_samples)
                 task = dataset
                 clss = self.get_dataset_object(dataset, type = 'CT').classes
                 nclss = len(clss)
                 data_train[dataset] = {'task': task, 'clss': clss, 'nclss':nclss, 'x_query_train':x_train_embed, 'y_query_train':y_train, \
                     'x_query_test':x_test_embed, 'y_query_test':y_test, 'type': 'CT', 'task_type':'classification'}
         return data_train
+
+
+    '''def parse_and_write_dataset_samples(self):
+        datasets = list(set(CT_DATASETS))
+        data={} 
+        #dict_keys(['task', 'clss', 'nclss', 'x_train', 'y_train', 'x_test', 'y_test', 'query'])
+        for dataset in tqdm.tqdm(datasets):
+            train_dataset_object = self.get_dataset_object(dataset, type, num_channels=3, train_split = True)
+            train_loader = torch.utils.data.DataLoader(
+                                        train_dataset_object, 
+                                        batch_size=self.n_samples,      
+                                        shuffle=True
+                                    )
+            test_dataset_object = self.get_dataset_object(dataset, type, num_channels=3, train_split = False)
+            test_loader = torch.utils.data.DataLoader(
+                                        test_dataset_object,    
+                                        batch_size=self.n_samples,  
+                                        shuffle=True
+                                    )'''
+            
+
+
 
 if __name__ == '__main__':
 

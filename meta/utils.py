@@ -91,7 +91,6 @@ class Read_CT_Models():
                     data = json.load(json_file)
                     if 'best_epoch' in data:
                         meta_data['best_epoch'] = data['best_epoch']['epoch']
-                        meta_data['acc'] = data['best_epoch']['acc']
                         meta_data['f1'] = data['best_epoch']['f1']
                         meta_data['loss'] = data['best_epoch']['epoch_loss']
                     else:

@@ -18,10 +18,22 @@ from datetime import datetime
 #from ofa.model_zoo import ofa_net
 from retrieval.loss import HardNegativeContrastiveLoss
 from retrieval.measure import compute_recall
+import torchvision 
 
 from misc.utils import *
 from data.loader import *
 from retrieval.nets import *
+
+from sklearn.metrics import f1_score
+
+def remove_module(state_dict):
+    from collections import OrderedDict
+    new_state_dict = OrderedDict()
+    for k, v in state_dict.items():
+        if 'module' in k:
+            k = k.replace('module.', '')
+        new_state_dict[k]=v
+    return new_state_dict
 
 class Retrieval:
 
@@ -183,24 +195,29 @@ class Retrieval:
     def store_model_embeddings(self):
         print('==> storing model embeddings ... ')
         start_time = time.time()
-        embeddings = {'dataset': [],'m_emb': [],'acc': [],'n_params': []}
+        embeddings = {'dataset': [],'m_emb': [],'acc': [] , 'f1': [], 'best_epoch': [], 'loss':[], 'model_path':[], 'model':[], 'with_aug':[], 'balanced': [], \
+            'pretrained': [], 'batch_128': [] , 'topn': []}
         
         for i, dataset in enumerate(self.model_zoo['dataset']): 
             emb_time = time.time()
-            acc = self.model_zoo['acc'][i]
-            n_params = self.model_zoo['n_params'][i]
-            #topol = self.model_zoo['topol'][i]
+            acc = self.model_zoo['f1'][i]
             f_emb = self.model_zoo['f_emb'][i]
             with torch.no_grad():
                 m_emb = self.enc_m(f_emb.unsqueeze(0).to(self.device))
             embeddings['dataset'].append(dataset) 
             embeddings['m_emb'].append(m_emb) 
-            embeddings['acc'].append(acc)
-            embeddings['n_params'].append(n_params)
-
-            if (i+1)%100 == 0:
-                print(f'{i+1}th model done ({time.time()-emb_time:.2f})')
-
+            embeddings['f1'].append(acc)
+            embeddings['acc'].append(self.model_zoo['acc'][i])
+            embeddings['loss'].append(self.model_zoo['loss'][i])
+            embeddings['model_path'].append(self.model_zoo['model_path'][i])
+            embeddings['model'].append(self.model_zoo['model'][i])
+            embeddings['with_aug'].append(self.model_zoo['with_aug'][i])
+            embeddings['balanced'].append(self.model_zoo['balanced'][i])
+            embeddings['pretrained'].append(self.model_zoo['pretrained'][i])
+            embeddings['batch_128'].append(self.model_zoo['batch_128'][i])
+            embeddings['topn'].append(self.model_zoo['topn'][i])
+            embeddings['best_epoch'].append(self.model_zoo['best_epoch'][i])
+            
         torch_save(self.args.retrieval_path, 'retrieval.pt', embeddings)
         print(f'==> storing embeddings done. ({time.time()-start_time}s)')
 
@@ -256,9 +273,7 @@ class Retrieval:
             print(f' ========================================================================================================================')
             print(f' [query_id:{query_id+1}] query by {query_dataset} ... ')
             for k, retrieved_dataset in enumerate(retrieved['dataset']):
-                topol = retrieved['topol'][k]
-                npms = retrieved['n_params'][k]
-                acc = retrieved['acc'][k]
+                acc = retrieved['f1'][k]
                 m_emb = retrieved['m_emb'][k].to(self.device)
                 acc_hat = self.predictor(q_emb, m_emb).item()
                 acc_hat_list.append(acc_hat)
@@ -271,6 +286,7 @@ class Retrieval:
                     top_j.append(j)
             top_k_idx = top_0 + top_j
             
+
             print(' ========================================================================================================================')
             print(f' [query_id:{query_id+1}] fine-tuning on {query_dataset} ... ')
             for i, k in enumerate(top_k_idx):
@@ -278,29 +294,28 @@ class Retrieval:
                 self.i = i
                 self.k = k
                 retrieved_dataset = retrieved['dataset'][k]
-                topol = retrieved['topol'][k]
-                npms = retrieved['n_params'][k]
-                acc = retrieved['acc'][k]
-                print(f' >>> [r_id:{k+1}({i+1})]: {retrieved_dataset}, n_parms: {npms}')
+
+                self.retrieved_dataset = retrieved_dataset
+                self.model = self.get_model(retrieved['model'][k], retrieved['model_path'][k], self.tr_dataset.get_n_clss()) #self.get_model(self.retrieved_dataset, topol, self.tr_dataset.get_n_clss())
+                self.lss_fn_meta_test = torch.nn.CrossEntropyLoss()
+                self.optim = torch.optim.SGD(self.model.parameters(), lr=1e-2, momentum=0.9, weight_decay=4e-5) 
+                self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optim, float(self.args.n_eps_finetuning))
+
+                acc = retrieved['f1'][k]
+                print(f' >>> [r_id:{k+1}({i+1})]: {self.retrieved_dataset}')
                 self.meta_test_results['retrieval'][k] = {
                     'scores': {
+                        'pre_train_f1': self.meta_test_evaluate()[1],
                         'ep_lss': [],'ep_acc': [],
-                        'acc': [],'acc_hat': acc_hat_list[k],
+                        'f1': [],'f1_hat': acc_hat_list[k],
                         'ep_tr_time': [],'ep_te_time': [],
                     },
                     'info': {
                         'task': retrieved_dataset,
-                        'npms': npms, #.item()
-                        'topo': topol, #.tolist()
                     }
                 }
                 #####################################
-                self.retrieved_dataset = retrieved_dataset
-                self.retrieved_npms = npms
-                self.model = self.get_model(self.retrieved_dataset, topol, self.tr_dataset.get_n_clss())
-                self.lss_fn_meta_test = torch.nn.CrossEntropyLoss()
-                self.optim = torch.optim.SGD(self.model.parameters(), lr=1e-2, momentum=0.9, weight_decay=4e-5) 
-                self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optim, float(self.args.n_eps_finetuning))
+               
                 lss, acc = self.fine_tune(k)
                 mse = np.sqrt(np.mean((acc_hat-acc)**2))
                 score_list.append(acc)
@@ -340,8 +355,8 @@ class Retrieval:
             self.meta_test_results['retrieval'][k]['scores']['ep_lss'].append(te_lss)
             
             print(
-                f' ==> [query_id:{self.query_id+1}]'+
-                f'[r_id:{self.k+1}({self.i+1}):{self.retrieved_dataset}]'+
+                f' ==> [query_id:{self.query_id+1}]: {self.retrieved_dataset}'+ 
+                f'[r_id:{self.k+1}({self.i+1}):]'+
                 f' ep:{ep+1}, tr_lss:{tr_lss:.3f},'+
                 f' te_lss:{te_lss:.3f}, te_acc: {te_acc:.3f},'+
                 f' tr_time:{ep_tr_time:.3f}s, te_time:{ep_te_time:.3f}s')
@@ -358,15 +373,25 @@ class Retrieval:
         crrct = 0 
         ep_time = 0  
         running_loss = 0.0
+
+        prob = []
+        labels = []
+        preds = []
         for b_id, batch in enumerate(self.te_loader):
             x, y = batch
+            labels += y.tolist()
             lss, y_hat, dura = self.meta_test_eval_step(x, y)
             ep_time += dura
             running_loss += lss.item() * x.size(0)
             total += y.size(0)
-            _, y_hat = torch.max(y_hat.data, 1)
-            crrct += (y_hat == y.to(self.device)).sum().item()
-        ep_acc = crrct/total
+            prob += (torch.nn.functional.softmax(y_hat, dim=1).detach().cpu().tolist())
+            b_preds = torch.argmax(y_hat, dim=-1)
+            preds+= b_preds.detach().cpu().tolist()
+            #_, y_hat = torch.max(y_hat.data, 1)
+            
+            #crrct += f1_score(y.to('cpu'), y_hat.to('cpu')).sum().item() #(y_hat == y.to(self.device)).sum().item()
+        
+        ep_acc = f1_score(labels, preds, average='micro')
         ep_lss = running_loss/len(self.te_dataset) # total 
         return ep_lss, ep_acc, ep_time
         
@@ -397,23 +422,66 @@ class Retrieval:
 
     def get_query_embeddings(self, x_emb):
         print(' ==> converting dataset to query embedding ... ')
-        q = self.enc_q(x_emb.unsqueeze(0)) 
+        q = self.enc_q(x_emb.unsqueeze(0))
         return q.squeeze()
 
-    def get_model(self, task, topo, nclss):
-        ks = topo[:20] 
-        e = topo[20:40]
-        d = topo[40:]
-        return self.get_subnet(task, ks, e, d, nclss)
+    def get_model(self, model, model_path, nclss):
 
-    def get_subnet(self, dataset, ks, e, d, nclss): 
-        supernet = torch_load(os.path.join(self.args.model_zoo_raw, f'{dataset}.pt'))
-        supernet.set_active_subnet(ks=ks, e=e, d=d)
-        subnet = supernet.get_active_subnet(preserve_weight=True)
-        subnet.classifier = torch.nn.Linear(1536, nclss)
-        subnet = subnet.to(self.device)
-        del supernet
-        return subnet
+        model_state_dict = torch.load(model_path, map_location=self.device)
+        if model_state_dict.__class__.__name__ == 'DataParallel':
+            model_state_dict = model_state_dict.module
+        if model_state_dict.__class__.__name__ == 'OrderedDict':
+            # Remove DataParallel module from state_dict
+            if 'module' in list(model_state_dict.keys())[0]:
+                model_state_dict = remove_module(model_state_dict)
+                #print('corrected state_dict')
+                #print(model.keys())
+            if 'resnet' in model:
+                final_layer_size = model_state_dict['fc.weight'].shape[0]
+            elif 'densenet' in model:
+                final_layer_size = model_state_dict['classifier.weight'].shape[0]               
+            else:
+                final_layer_size = model_state_dict['classifier.1.weight'].shape[0]
+            # Load the state_dict into model_obj
+            model_obj = getattr(torchvision.models, model)(pretrained = False, num_classes = final_layer_size)
+            model_obj.load_state_dict(model_state_dict)   
+            
+            if model_obj.__class__.__name__ == 'ResNet':
+                model_obj.fc = torch.nn.Linear(model_obj.fc.in_features, nclss)
+                model_obj.fc.weight.data.zero_()
+                model_obj.fc.bias.data.zero_()
+            
+            elif ((model_obj.__class__.__name__ == 'MobileNetV2') | (model_obj.__class__.__name__ == 'EfficientNet')):
+                model_obj.classifier[1] = torch.nn.Linear(model_obj.classifier[1].in_features, nclss)
+                model_obj.classifier[1].weight.data.zero_()
+                model_obj.classifier[1].bias.data.zero_()
+            else:
+                print(model_obj.__class__.__name__ )
+                model_obj.classifier = torch.nn.Linear(model_obj.classifier.in_features, nclss)
+                model_obj.classifier.weight.data.zero_()
+                model_obj.classifier.bias.data.zero_()
+            
+            model_obj.to(self.device)
+            del model_state_dict
+            return model_obj
+            
+
+        '''
+        def get_model(self, task, topo, nclss):
+            ks = topo[:20] 
+            e = topo[20:40]
+            d = topo[40:]
+            return self.get_subnet(task, ks, e, d, nclss)
+
+        def get_subnet(self, dataset, ks, e, d, nclss): 
+            supernet = torch_load(os.path.join(self.args.model_zoo_raw, f'{dataset}.pt'))
+            supernet.set_active_subnet(ks=ks, e=e, d=d)
+            subnet = supernet.get_active_subnet(preserve_weight=True)
+            subnet.classifier = torch.nn.Linear(1536, nclss)
+            subnet = subnet.to(self.device)
+            del supernet
+            return subnet
+        '''
 
     def retrieve(self, _q, n_retrieval):
         s_t = time.time()
@@ -425,7 +493,9 @@ class Retrieval:
             for k, v in self.cross_modal_info.items():
                 if not k in retrieved:
                     retrieved[k] = []
-                retrieved[k].append(v[idx])
+                # convert idx to int
+                retrieved[k].append(v[int(idx.item())])
+               
         dura = time.time() - s_t
         self.meta_test_results['retrieval']['search_time'] = dura
         print(f'search time {dura:.5f} s')

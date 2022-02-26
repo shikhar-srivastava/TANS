@@ -1,10 +1,10 @@
 #!/bin/bash
-#SBATCH --partition=multigpu
+#SBATCH --partition=default-short
 #SBATCH --job-name=meta
 #SBATCH -N1
 #SBATCH -n1
-#SBATCH --cpus-per-task=64
-#SBATCH --mem=50G
+#SBATCH --cpus-per-task=32
+#SBATCH --mem=200G
 #SBATCH --gpus=1
 #SBATCH --output=/nfs/users/ext_shikhar.srivastava/workspace/TANS/logs/%j.out
 
@@ -12,9 +12,10 @@
                    --mode test \
                    --n-retrievals 10\
                    --n-eps-finetuning 50\
-                   --batch-size 32\
-                   --load-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/20220209_1428\
-                   --data-path /nfs/projects/mbzuai/shikhar/datasets/ofa/data_path\
-                   --model-zoo /nfs/projects/mbzuai/shikhar/datasets/ofa/model_zoo/p_mod_zoo.pt\
+                   --batch-size 64\
+                   --load-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/ours/20220226_1212\
+                   --base-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/ours/20220226_1212\
+                   --data-path /nfs/projects/mbzuai/shikhar/datasets/ofa/our_data_path\
+                   --model-zoo /nfs/projects/mbzuai/shikhar/datasets/ofa/our_mod_zoo.pt\
                    --model-zoo-raw /nfs/projects/mbzuai/shikhar/datasets/ofa/model_zoo_raw/v14/geon/final_data/trained_ofa_models\
                    --seed 777
