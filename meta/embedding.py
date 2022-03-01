@@ -9,11 +9,44 @@ import torchvision
 from meta.ct.transforms import compose, Clip
 import torchxrayvision as xrv
 import tqdm 
-
+import numpy as np
 import pandas as pd
 
-CT_DATASETS = DATASETS
-XRAY_DATASETS = ['nih', 'chex', 'pc', 'mimic']
+class XRayCenterCrop(torch.nn.Module):
+    """
+    Code adapted from: https://github.com/mlmed/torchxrayvision/
+    """
+
+    def crop_center(self, img):
+        _, y, x = img.shape
+        crop_size = np.min([y, x])
+        startx = x // 2 - (crop_size // 2)
+        starty = y // 2 - (crop_size // 2)
+        return img[:, starty : starty + crop_size, startx : startx + crop_size]
+
+    def forward(self, img):
+        return self.crop_center(img)
+
+
+DATASETS = [
+    "MosMed",
+    "fetal_ultrasound",
+    "kits",
+    "LiTs",
+    "RSPECT",
+    "IHD_Brain",
+    "ImageCHD",
+    "CTPancreas",
+    "Brain_MRI",
+    "ProstateMRI",
+    "RSNAXRay",
+    "Covid19XRay"
+]
+
+XRAY = ['RSNAXRay', 'Covid19XRay']
+CT_MRI = ['MosMed', 'kits', 'LiTs', 'RSPECT', 'IHD_Brain', 'ImageCHD', 'CTPancreas','Brain_MRI', 'ProstateMRI']
+ULTRASOUND = ["fetal_ultrasound"]
+
 nih_path = '/nfs/projects/mbzuai/shikhar/datasets/nih/images'
 chexpert_path = '/nfs/projects/mbzuai/shikhar/datasets/chexpert_small/CheXpert-v1.0-small'
 padchest_path = '/nfs/projects/mbzuai/shikhar/datasets/padchest'
@@ -154,53 +187,30 @@ class DatasetEmbeddings():
         self.resnet = torchvision.models.resnet18(pretrained=True)
         
 
-    def get_dataset_object(self, dataset, type = 'CT', num_channels = 1, train_split = True):
+    def get_dataset_object(self, dataset, num_channels = 3, train_split = True):
 
-        assert type in ['CT', 'XRAY', 'MRI'], 'Dataset type not supported'
-        if type == 'CT':
-            assert dataset in CT_DATASETS, f'{dataset} not in {CT_DATASETS}'
-            # config params
-            path = '/nfs/projects/mbzuai/BioMedIA/MICCIA_22/Taskonomy_preprocessed/'
-            
-            train_split_path = f'/nfs/users/ext_shikhar.srivastava/workspace/MedicalTaskonomy//data/CT/splits/balanced/{self.category}'
-
+        
+        # config params
+        path = '/nfs/projects/mbzuai/BioMedIA/MICCIA_22/Taskonomy_preprocessed/'
+        
+        train_split_path = f'/nfs/users/ext_shikhar.srivastava/workspace/MedicalTaskonomy//data/CT/splits/balanced/{self.category}'
+        
+        if dataset in CT_MRI:
             transforms = T.Compose([Clip([-1000, 1000]), T.Normalize((0.5,),(0.5,))])
-            dataset_object = CT_Dataset(
-                path=path,
-                name=dataset,
-                train=train_split,
-                num_channels=num_channels,
-                preprocess=transforms,
-                split_path=train_split_path,
-            )
-            return dataset_object
-        elif type == 'XRAY':
-            assert dataset in XRAY_DATASETS, f'{dataset} not in {XRAY_DATASETS}'
-            transforms = torchvision.transforms.Compose([xrv.datasets.XRayCenterCrop(),xrv.datasets.XRayResizer(224)])
-            if "chex" in dataset:
-                dataset_object = xrv.datasets.CheX_Dataset(
-                    imgpath=chexpert_path,
-                    csvpath=chexpert_path +"/train.csv",
-                    transform=transforms, data_aug=None, unique_patients=False)
-                return dataset_object
-            elif "nih" in dataset:
-                dataset_object = xrv.datasets.NIH_Dataset(
-                    imgpath=nih_path, 
-                    transform=transforms, data_aug=None, unique_patients=False)
-                return dataset_object
-            elif "pc" in dataset:
-                dataset_object = xrv.datasets.PC_Dataset(
-                    imgpath=padchest_path,
-                    transform=transforms, data_aug=None, unique_patients=False)
-                return dataset_object
-            elif "mimic" in dataset:
-                dataset_object = xrv.datasets.MIMIC_Dataset(
-                imgpath=mimic_path + '/files',
-                csvpath=mimic_path +'/mimic-cxr-2.0.0-metadata.csv.gz',
-                metacsvpath=mimic_path +'/mimic-cxr-2.0.0-chexpert.csv.gz',
-                transform=transforms, data_aug=None, unique_patients=False)
-                return dataset_object
-
+        elif dataset in ULTRASOUND:
+            transforms = T.Compose([T.Normalize((0.5,),(0.5,))])
+        elif dataset in XRAY:
+            transforms = torchvision.transforms.Compose([XRayCenterCrop(),T.Resize(size = 224)])
+        dataset_object = CT_Dataset(
+            path=path,
+            name=dataset,
+            train=train_split,
+            num_channels=num_channels,
+            preprocess=transforms,
+            split_path=train_split_path,
+        )
+        return dataset_object
+        
     
     def x_embedding(self, x):
         activations = {}
@@ -235,17 +245,17 @@ class DatasetEmbeddings():
 
     def meta_test_embed_datasets(self, n_samples):
         data_train = {}
-        for dataset in tqdm.tqdm(list(set(CT_DATASETS))):
+        for dataset in tqdm.tqdm(list(set(DATASETS))):
             query_embed = self.embed_dataset_single(dataset, n_samples=n_samples)
             task = dataset
-            clss = self.get_dataset_object(dataset, type = 'CT').classes
+            clss = self.get_dataset_object(dataset).classes
             nclss = len(clss)
             data_train[task] = {'task': task, 'clss': clss, 'nclss': nclss, 'query': query_embed}
         return data_train
 
-    def embed_dataset(self, dataset, type, n_samples):
-        train_dataset_object = self.get_dataset_object(dataset, type, train_split = True)
-        test_dataset_object = self.get_dataset_object(dataset, type, train_split=False)
+    def embed_dataset(self, dataset, n_samples):
+        train_dataset_object = self.get_dataset_object(dataset, train_split = True)
+        test_dataset_object = self.get_dataset_object(dataset, train_split=False)
         train_loader = torch.utils.data.DataLoader(
                                         train_dataset_object,
                                         batch_size=n_samples,
@@ -257,73 +267,46 @@ class DatasetEmbeddings():
                                         shuffle=True
                                     )
         
-        if type == 'CT':
-            x_train,y_train = train_loader.__iter__().__next__()
-            x_test, y_test = test_loader.__iter__().__next__()
-            del train_loader
-            del test_loader
-        elif type == 'XRAY':
-            _train = train_loader.__iter__().__next__()
-            _test = test_loader.__iter__().__next__()
-            del train_loader
-            x_train = _train['img']
-            x_test = _test['img']
-            y_train = _train['lab']
-            y_test = _test['lab']
+        x_train,y_train = train_loader.__iter__().__next__()
+        x_test, y_test = test_loader.__iter__().__next__()
+        del train_loader
+        del test_loader
 
         x_train_embed = []
         x_test_embed = []
         for _x in x_train:
-            x_train_embed.append(self.x_embedding(_x.repeat(1, 3, 1, 1)))
+            x_train_embed.append(self.x_embedding(_x.unsqueeze(0)))
         for _x in x_test:
-            x_test_embed.append(self.x_embedding(_x.repeat(1, 3, 1, 1)))
+            x_test_embed.append(self.x_embedding(_x.unsqueeze(0)))
 
         return x_train_embed, y_train, x_test_embed, y_test
 
-    def parse_and_embed(self, n_samples, no_xray = True):
-        if no_xray:
-            datasets = list(set(CT_DATASETS))
-        else:
-            datasets = list(set(XRAY_DATASETS + CT_DATASETS) - set(['mimic']))
+    def parse_and_embed(self, n_samples):
+
+        datasets = list(set(DATASETS))
+        
         data_train = {}
         # use tqdm to iterate
         for dataset in tqdm.tqdm(datasets):
             print(dataset)
-            if dataset in XRAY_DATASETS:
-                x_train_embed, y_train, x_test_embed, y_test = self.embed_dataset(dataset = dataset, type = 'XRAY', n_samples = n_samples)
-                task = dataset
-                clss = self.get_dataset_object(dataset, type = 'XRAY').pathologies
-                nclss = len(clss)
-                data_train[dataset] = {'task': task, 'clss': clss, 'nclss':nclss, 'x_query_train':x_train_embed, 'y_query_train':y_train, \
-                    'x_query_test':x_test_embed, 'y_query_test':y_test, 'type': 'XRAY', 'task_type':'classification'}
-            else:
-                x_train_embed, y_train, x_test_embed, y_test = self.embed_dataset(dataset = dataset, type = 'CT', n_samples = n_samples)
-                task = dataset
-                clss = self.get_dataset_object(dataset, type = 'CT').classes
-                nclss = len(clss)
-                data_train[dataset] = {'task': task, 'clss': clss, 'nclss':nclss, 'x_query_train':x_train_embed, 'y_query_train':y_train, \
-                    'x_query_test':x_test_embed, 'y_query_test':y_test, 'type': 'CT', 'task_type':'classification'}
+
+            x_train_embed, y_train, x_test_embed, y_test = self.embed_dataset(dataset = dataset, n_samples = n_samples)
+            task = dataset
+            clss = self.get_dataset_object(dataset).classes
+            nclss = len(clss)
+            if 'MRI' in dataset:
+                type = 'MRI'
+            elif dataset in CT_MRI:
+                type = 'CT'
+            elif dataset in ULTRASOUND:
+                type = 'US'
+            elif dataset in XRAY:
+                type = 'XRAY'
+
+            data_train[dataset] = {'task': task, 'clss': clss, 'nclss':nclss, 'x_query_train':x_train_embed, 'y_query_train':y_train, \
+                'x_query_test':x_test_embed, 'y_query_test':y_test, 'type': type, 'task_type':'classification'}
         return data_train
 
-
-    '''def parse_and_write_dataset_samples(self):
-        datasets = list(set(CT_DATASETS))
-        data={} 
-        #dict_keys(['task', 'clss', 'nclss', 'x_train', 'y_train', 'x_test', 'y_test', 'query'])
-        for dataset in tqdm.tqdm(datasets):
-            train_dataset_object = self.get_dataset_object(dataset, type, num_channels=3, train_split = True)
-            train_loader = torch.utils.data.DataLoader(
-                                        train_dataset_object, 
-                                        batch_size=self.n_samples,      
-                                        shuffle=True
-                                    )
-            test_dataset_object = self.get_dataset_object(dataset, type, num_channels=3, train_split = False)
-            test_loader = torch.utils.data.DataLoader(
-                                        test_dataset_object,    
-                                        batch_size=self.n_samples,  
-                                        shuffle=True
-                                    )'''
-            
 
 
 

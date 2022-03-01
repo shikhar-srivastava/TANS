@@ -10,8 +10,9 @@ import torch.utils.data
 
 
 DATASETS = [
-    "MosMed",
     "kits",
+    "fetal_ultrasound",
+    "MosMed",
     "LiTs",
     "RSPECT",
     "IHD_Brain",
@@ -20,7 +21,7 @@ DATASETS = [
     "Brain_MRI",
     "ProstateMRI",
     "RSNAXRay",
-    "Covid19XRay",
+    "Covid19XRay"
 ]
 
 MODES = ["Classify", "Segment"]

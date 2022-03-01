@@ -4,7 +4,7 @@
 #SBATCH -N1
 #SBATCH -n1
 #SBATCH --cpus-per-task=32
-#SBATCH --mem=200G
+#SBATCH --mem=100G
 #SBATCH --gpus=1
 #SBATCH --output=/nfs/users/ext_shikhar.srivastava/workspace/TANS/logs/%j.out
 
@@ -12,9 +12,9 @@
                    --mode test \
                    --n-retrievals 10\
                    --n-eps-finetuning 50\
-                   --batch-size 64\
-                   --load-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/ours/20220226_1212\
-                   --base-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/ours/20220226_1212\
+                   --batch-size 32\
+                   --load-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/ours/20220302_0137/\
+                   --base-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/ours/20220302_0137/\
                    --data-path /nfs/projects/mbzuai/shikhar/datasets/ofa/our_data_path\
                    --model-zoo /nfs/projects/mbzuai/shikhar/datasets/ofa/our_mod_zoo.pt\
                    --model-zoo-raw /nfs/projects/mbzuai/shikhar/datasets/ofa/model_zoo_raw/v14/geon/final_data/trained_ofa_models\

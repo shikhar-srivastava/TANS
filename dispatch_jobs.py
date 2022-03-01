@@ -52,6 +52,25 @@ def dispatch_job(command, params, N = 1 , n = 1, mem = '50G', \
     print(f'command: {command}')
 
 
+def gen_leave4out():
+    MRI = ["Brain_MRI","ProstateMRI"]
+    XRAY = ["RSNAXRay","Covid19XRay"]
+    CT = [ "MosMed",
+    "kits",
+    "LiTs",
+    "RSPECT",
+    "IHD_Brain",
+    "ImageCHD",
+    "CTPancreas"]
+    # get all combinations of 2 CT datasets with 1 MRI and 1 XRAY
+    combs = []
+    for mri in MRI:
+        for xray in XRAY:
+            for (ct1,ct2) in combinations(CT, 2):
+                combs.append([ct1,ct2,mri,xray])
+    return combs
+    
+from itertools import combinations
 
 if __name__ == '__main__':
 
@@ -65,12 +84,9 @@ if __name__ == '__main__':
     gpus = 4
     cpus_per_task = 8*gpus
     mem = str(int(gpus*15)) + 'G'
-    partition = 'multigpu'
+    partition = 'default-short'
     
-    datasets = ['chex'] #'nih', 'pc', 
-    models = ['mobilenet_v2']#,'resnet18','resnet50','densenet121'] #['resnet18', 'resnet34', 'resnet50', 'resnet101', 'densenet121', 'mobilenet_v2']
-    augs = [True, False]
-    imagenet_pretraining = [True, False]
+
 
     for dataset in datasets:
         for model in models:
