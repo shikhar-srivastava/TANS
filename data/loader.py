@@ -86,7 +86,7 @@ CT_MRI = ['MosMed', 'kits', 'LiTs', 'RSPECT', 'IHD_Brain', 'ImageCHD', 'CTPancre
 ULTRASOUND = ['fetal_ultrasound']
 
 #TEST_OUT =  ['ImageCHD'] #['kits', 'LiTs', 'RSPECT', 'IHD_Brain', 'Covid19Xray', 'CTPancreas', 'fetal_ultrasound']
-TEST_OUT =  ['MosMed', 'RSNAXRay'] #['Covid19XRay', 'LiTs']# # #'fetal_ultrasound', 'ProstateMRI', 'CTPancreas', #, 'CTPancreas', 'Covid19XRay', 'LiTs']
+TEST_OUT =  ['ProstateMRI'] #['CTPancreas', 'Covid19XRay', 'LiTs'] #['MosMed', 'RSNAXRay','Covid19XRay'], # 'ProstateMRI', 'CTPancreas'] #, 'CTPancreas', 'Covid19XRay', 'LiTs']
 TRAIN_OUT = ['Brain_MRI','MosMed', 'RSNAXRay', 'fetal_ultrasound', 'ProstateMRI']
 #IN = DATASETS 
 class MetaTestDataset(Dataset):

@@ -44,7 +44,7 @@ class Retrieval:
         self.cross_trainer = True
         self.mask_self = True
         self.random_pick = False
-        self.print_retrievals_only = True
+        self.print_retrievals_only = False
         self.ignore_brainmri = True
         atexit.register(self.atexit)
 

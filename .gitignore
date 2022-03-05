@@ -10,3 +10,5 @@ scripts/test.sh
 
 */__pycache__/*
 ofa/imagenet_classification/__pycache__/*
+data/*
+*.bz2
