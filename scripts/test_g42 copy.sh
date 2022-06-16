@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=multigpu
+#SBATCH --partition=default-long
 #SBATCH --job-name=meta
 #SBATCH -N1
 #SBATCH -n1
@@ -13,8 +13,8 @@
                    --n-retrievals 10\
                    --n-eps-finetuning 50\
                    --batch-size 32\
-                   --load-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/ours/20220527_1037/\
-                   --base-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/ours/20220527_1037/\
+                   --load-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/ours/20220302_0226/\
+                   --base-path /nfs/users/ext_shikhar.srivastava/workspace/TANS/outcomes/ours/20220302_0226/\
                    --data-path /nfs/projects/mbzuai/shikhar/datasets/ofa/our_data_path\
                    --model-zoo /nfs/projects/mbzuai/shikhar/datasets/ofa/our_mod_zoo.pt\
                    --model-zoo-raw /nfs/projects/mbzuai/shikhar/datasets/ofa/model_zoo_raw/v14/geon/final_data/trained_ofa_models\

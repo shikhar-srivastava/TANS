@@ -14,7 +14,7 @@ import torch.optim as optim
 
 from dataloaders import get_dataloaders
 
-def train(model, args, device, train_loader, optimizer, epoch):
+def train(model, args, device, train_loader, optimizer, epoch, scheduler):
     model.train()
     # log the performances every epoch
     train_loss = 0
@@ -26,6 +26,7 @@ def train(model, args, device, train_loader, optimizer, epoch):
         loss = F.cross_entropy(output, target, reduction='sum')
         loss.backward()
         optimizer.step()
+        scheduler.step()
 
         train_loss += loss.item()
         if batch_idx % args.log_interval == 0:
@@ -66,7 +67,7 @@ def main():
                         help='number of epochs to train (default: 10)')
     parser.add_argument('--lr', type=float, default=0.01, metavar='LR',
                         help='learning rate (default: 0.01)')
-    parser.add_argument('--momentum', type=float, default=0.5, metavar='M',
+    parser.add_argument('--momentum', type=float, default=0.9, metavar='M',
                         help='SGD momentum (default: 0.5)')
     parser.add_argument('--no-cuda', action='store_true', default=False,
                         help='disables CUDA training')
@@ -103,14 +104,15 @@ def main():
 
     
     model = getattr(models, args.model)(num_classes = num_classes).to(device)
-    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum)
+    optimizer = optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=4e-5)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, args.epochs)
     # log metrics
     metrics = {'pre_train':[], 'epoch':[],'train_loss': [], 'test_loss': [], 'test_acc': [], 'test_correct': [], 'test_total': []}
     te_loss, test_correct, test_total, acc =  test(model, device, test_loader)
     metrics['pre_train'].append((te_loss,test_correct, test_total, acc))
     
     for epoch in range(1, args.epochs + 1):
-        tr_loss = train(model, args, device, train_loader, optimizer, epoch)
+        tr_loss = train(model, args, device, train_loader, optimizer, epoch, scheduler)
         te_loss, test_correct, test_total, acc =  test(model, device, test_loader)
         metrics['train_loss'].append(tr_loss)
         metrics['test_loss'].append(te_loss)

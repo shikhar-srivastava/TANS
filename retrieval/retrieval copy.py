@@ -294,7 +294,7 @@ class Retrieval:
                 self.model = self.get_model(self.retrieved_dataset, topol, self.tr_dataset.get_n_clss())
                 self.lss_fn_meta_test = torch.nn.CrossEntropyLoss()
                 self.optim = torch.optim.SGD(self.model.parameters(), lr=1e-2, momentum=0.9, weight_decay=4e-5) 
-                self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optim, float(self.args.n_eps_finetuning))
+                self.scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(self.optim, epochs)
                 lss, acc = self.fine_tune(k)
                 mse = np.sqrt(np.mean((acc_hat-acc)**2))
                 score_list.append(acc)

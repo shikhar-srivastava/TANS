@@ -13,9 +13,6 @@ import time
         > squeue -u ext_shikhar.srivastava | awk '{print $1}' | xargs -n 1 scancel
         # squeue -n ewc_sensitivity | awk '{print $1}' | xargs -n 1 scancel
 '''
-
-
-
 def dispatch_job(command, params, N = 1 , n = 1, mem = '50G', \
     cpus_per_task = 32, gpus = 4, run_name = 'job',\
         output = '/l/users/shikhar.srivastava/workspace/hover_net/logs/slurm/%j.out', partition = 'mbzuai'):
@@ -68,8 +65,9 @@ def alloc_parition(job_count):
 
 if __name__ == '__main__':
 
-    run_no = 'third_run'
+    run_no = 'first_transfer'
     log_path = f'/nfs/users/ext_shikhar.srivastava/workspace/TANS/training/logs/{run_no}/'
+    zero_path = '/nfs/users/ext_shikhar.srivastava/workspace/TANS/training/logs/second_run/'
 
     command = "/nfs/users/ext_shikhar.srivastava/miniconda3/envs/ofa/bin/python /nfs/users/ext_shikhar.srivastava/workspace/TANS/training/main.py"
     
@@ -78,12 +76,18 @@ if __name__ == '__main__':
     mem = str(int(gpus*30)) + 'G'
     job_count = 0
     
-    models = ['resnet18', 'resnet34','resnet50', 'resnet101','densenet121','mobilenet_v2', 'mobilenet_v3_large', 'mobilenet_v3_small', 'vgg11', 'vgg13', 'squeezenet1_0', 'squeezenet1_1', 'shufflenet_v2_x0_5', 'shufflenet_v2_x1_0', 'efficientnet_b0','efficientnet_b3', 'efficientnet_b4']
+    # Get model paths
+    subdirs = [os.path.join(zero_path, o) for o in os.listdir(zero_path) if os.path.isdir(os.path.join(zero_path, o))]
+    files = []
+    for subdir in subdirs:
+        files += [os.path.join(subdir,f) for f in os.listdir(subdir) if ((f.endswith('.pt')) & ('metrics' not in f))]
+
     datasets = ['MNIST', 'FashionMNIST', 'CIFAR10', 'CIFAR100', 'STL10', 'ImageNet', 'SVHN', 'KMNIST', 'USPS', 'QMNIST']
     
-    for dataset in datasets:
-        for model in models:
-            DIR = log_path + dataset + '/' + model
+    for model in files:
+        for dataset in datasets:
+ 
+            DIR = log_path + model.split('/')[-1].split('.')[0] + '/' + dataset + '/'
 
             if not os.path.exists(DIR):
                 os.makedirs(DIR)

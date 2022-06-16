@@ -68,21 +68,20 @@ def alloc_parition(job_count):
 
 if __name__ == '__main__':
 
-    #bucket_step_string = 'top5'
+    run_no = 'third_run'
+    log_path = f'/nfs/users/ext_shikhar.srivastava/workspace/TANS/training/logs/{run_no}/'
 
-    log_path = f'/nfs/users/ext_shikhar.srivastava/workspace/TANS/training/logs/'
-
-    command = "/nfs/users/ext_shikhar.srivastava/miniconda3/envs/ofa/bin/python /nfs/users/ext_shikhar.srivastava/workspace/TANS/training/zero.py"
+    command = "/nfs/users/ext_shikhar.srivastava/miniconda3/envs/ofa/bin/python /nfs/users/ext_shikhar.srivastava/workspace/TANS/training/main.py"
+    
     gpus = 1
     cpus_per_task = 8*gpus
     mem = str(int(gpus*30)) + 'G'
     job_count = 0
     
-    models = ['resnet18', 'resnet34', 'resnet50', 'resnet101', 'resnet152', 'alexnet', 'vgg13', 'vgg16', 'vgg19', 'squeezenet1_0', 'squeezenet1_1', \
-        'densenet121', 'densenet169', 'densenet161', 'inception_v3', 'googlenet', 'shufflenet_v2_x0_5', 'shufflenet_v2_x1_0', 'shufflenet_v2_x1_5']
+    models = ['resnet18', 'resnet34','resnet50', 'resnet101','densenet121', 'mobilenet_v2', 'mobilenet_v3_large', 'mobilenet_v3_small', 'vgg11', 'vgg13', 'squeezenet1_0', 'squeezenet1_1', 'shufflenet_v2_x0_5', 'shufflenet_v2_x1_0', 'efficientnet_b0','efficientnet_b3', 'efficientnet_b4']
 
     datasets = ['MNIST', 'FashionMNIST', 'CIFAR10', 'CIFAR100', 'STL10', 'ImageNet', 'SVHN', 'KMNIST', 'USPS', 'QMNIST']
-
+    
     for dataset in datasets:
         for model in models:
             DIR = log_path + dataset + '/' + model
@@ -91,6 +90,10 @@ if __name__ == '__main__':
                 os.makedirs(DIR)
             
             params = dict()
+            if 'MNIST' in dataset:
+                params['epochs'] = 20
+            else:
+                params['epochs'] = 50
             params['model']  = model
             params['dataset'] = dataset
             params['log-dir'] = DIR

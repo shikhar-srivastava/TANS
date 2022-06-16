@@ -15,11 +15,20 @@ import time
 import random
 import numpy as np
 import torchvision
+import pandas as pd
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 from misc.utils import *
 import torchvision.transforms as T
 from meta.ct.transforms import compose, Clip
+from sklearn.model_selection import train_test_split
+
+def set_seed(seed):
+    # Set the random seed for reproducible experiments
+    torch.cuda.manual_seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
 
 class XRayCenterCrop(torch.nn.Module):
     """
@@ -67,7 +76,6 @@ SLICES_DIR = "slices"
 
 
 DATASETS = [
-    "MosMed",
     "fetal_ultrasound",
     "kits",
     "LiTs",
@@ -78,7 +86,8 @@ DATASETS = [
     "Brain_MRI",
     "ProstateMRI",
     "RSNAXRay",
-    "Covid19XRay"
+    "Covid19XRay",
+    "MosMed",
 ]
 
 XRAY = ['RSNAXRay', 'Covid19XRay']
@@ -86,12 +95,13 @@ CT_MRI = ['MosMed', 'kits', 'LiTs', 'RSPECT', 'IHD_Brain', 'ImageCHD', 'CTPancre
 ULTRASOUND = ['fetal_ultrasound']
 
 #TEST_OUT =  ['ImageCHD'] #['kits', 'LiTs', 'RSPECT', 'IHD_Brain', 'Covid19Xray', 'CTPancreas', 'fetal_ultrasound']
-TEST_OUT =  ['ProstateMRI'] #['CTPancreas', 'Covid19XRay', 'LiTs'] #['MosMed', 'RSNAXRay','Covid19XRay'], # 'ProstateMRI', 'CTPancreas'] #, 'CTPancreas', 'Covid19XRay', 'LiTs']
-TRAIN_OUT = ['Brain_MRI','MosMed', 'RSNAXRay', 'fetal_ultrasound', 'ProstateMRI']
+TEST_OUT =  DATASETS #['ProstateMRI'] #['CTPancreas', 'Covid19XRay', 'LiTs'] #['MosMed', 'RSNAXRay','Covid19XRay'], # 'ProstateMRI', 'CTPancreas'] #, 'CTPancreas', 'Covid19XRay', 'LiTs']
+TRAIN_OUT = [] #['Brain_MRI','MosMed', 'RSNAXRay', 'fetal_ultrasound', 'ProstateMRI']
 #IN = DATASETS 
 class MetaTestDataset(Dataset):
     def __init__(self, args, dataset_list = TEST_OUT, mode='train'):
         self.args = args
+        set_seed(args.seed)
         self.mode = mode
         self.path = '/nfs/projects/mbzuai/BioMedIA/MICCIA_22/Taskonomy_preprocessed/'
         self.dataset_list = dataset_list
@@ -132,6 +142,7 @@ class MetaTestDataset(Dataset):
     
     def cache_dataset(self):
         dataset = {}
+        print('Caching dataset...')
         for index in range(len(self.dataset_data["inputs"])):
 
             img_path = os.path.join(
@@ -151,29 +162,37 @@ class MetaTestDataset(Dataset):
             dataset[index] = (img, target)
         return dataset
 
-    def set_mode(self, mode):
-        self.mode = mode
-        if mode == 'train':
-            self.split = "train"
-        else:
-            self.split = "val"
-        dt_split_file = os.path.join(self.split_path, self.curr_dataset + "_" + self.split + ".json")
-        dt_split_file = open(dt_split_file, mode="r")
-        self.dataset_data = json.load(dt_split_file)
+    # def set_mode(self, mode):
+    #     self.mode = mode
+    #     if mode == 'train':
+    #         self.split = "train"
+    #     else:
+    #         self.split = "val"
+    #     dt_split_file = os.path.join(self.split_path, self.curr_dataset + "_" + self.split + ".json")
+    #     dt_split_file = open(dt_split_file, mode="r")
+    #     self.dataset_data = json.load(dt_split_file)
 
     def get_dataset_list(self):
         return self.dataset_list
 
-    def set_dataset(self, dataset, no_caching = False):
+    def set_dataset(self, dataset, no_caching = False, percentage_samples = 1.0):
         del self.dataset_data
-        if self.dataset_cache is None:
+        if self.dataset_cache is not None:
             del self.dataset_cache
         self.curr_dataset = dataset
         dt_split_file = os.path.join(self.split_path, self.curr_dataset + "_" + self.split + ".json")
         dt_split_file = open(dt_split_file, mode="r")
        
-        self.dataset_data = json.load(dt_split_file)
-        print(f"{dataset}: #_train: {len(self.dataset_data['inputs'])}")
+
+        _dataset_data = json.load(dt_split_file)
+        if self.mode == 'train':
+            _dataset_data = pd.DataFrame(dict([ (k,pd.Series(v)) for k,v in _dataset_data.items() ]))
+            _dataset_data = _dataset_data.sample(frac=percentage_samples, random_state=self.args.seed)
+            self.dataset_data = _dataset_data.reset_index(drop=True).to_dict(orient='list')
+            del _dataset_data
+        else:
+            self.dataset_data = _dataset_data
+        print(f"{dataset}: #_{self.mode}: {len(self.dataset_data['inputs'])} with {percentage_samples*100}% samples")
 
         if self.curr_dataset in XRAY:
             self.preprocess = torchvision.transforms.Compose([XRayCenterCrop(),T.Resize(size = 224)])
@@ -223,6 +242,7 @@ class MetaTrainDataset(Dataset):
     def __init__(self, args, mode='train', remove_datasets = TRAIN_OUT):
         start_time = time.time()
         self.args = args
+        set_seed(args.seed)
         self.mode = mode
         self.model_zoo = torch_load(self.args.model_zoo)
         #self.model_zoo = {k: v for k, v in self.model_zoo.items() if k not in remove_datasets}
@@ -270,8 +290,8 @@ class MetaTrainDataset(Dataset):
     def __len__(self):
         return len(self.contents) 
 
-    def set_mode(self, mode):
-        self.mode = mode
+    # def set_mode(self, mode):
+    #     self.mode = mode
         
     def __getitem__(self, index):
         dataset = self.contents[index][0]
@@ -300,6 +320,7 @@ class MetaTransferDataset(Dataset):
     def __init__(self, args, mode='train', remove_datasets = TRAIN_OUT):
         start_time = time.time()
         self.args = args
+        set_seed(args.seed)
         self.mode = mode
         self.model_zoo = torch_load(self.args.model_zoo)
         self.transfer = torch_load(f'/nfs/users/ext_shikhar.srivastava/workspace/TANS/{mode}_transfer_1.pt')
@@ -332,8 +353,8 @@ class MetaTransferDataset(Dataset):
     def __len__(self):
         return len(self.contents) 
 
-    def set_mode(self, mode):
-        self.mode = mode
+    # def set_mode(self, mode):
+    #     self.mode = mode
         
     def __getitem__(self, index):
         dataset = self.contents[index][0]

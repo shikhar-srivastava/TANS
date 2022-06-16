@@ -1,0 +1,2 @@
+MODELS = ['resnet18', 'resnet34','resnet50', 'resnet101','densenet121','mobilenet_v2', 'mobilenet_v3_large', 'mobilenet_v3_small', 'vgg11', 'vgg13', 'squeezenet1_0', 'squeezenet1_1', 'shufflenet_v2_x0_5', 'shufflenet_v2_x1_0', 'efficientnet_b0','efficientnet_b3', 'efficientnet_b4']
+DATASETS = ['MNIST', 'FashionMNIST', 'CIFAR10', 'CIFAR100', 'STL10', 'ImageNet', 'SVHN', 'KMNIST', 'USPS', 'QMNIST']

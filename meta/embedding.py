@@ -11,6 +11,15 @@ import torchxrayvision as xrv
 import tqdm 
 import numpy as np
 import pandas as pd
+import random
+
+def set_seed(seed):
+    # Set the random seed for reproducible experiments
+    torch.cuda.manual_seed(seed)
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+
 
 class XRayCenterCrop(torch.nn.Module):
     """
@@ -27,6 +36,7 @@ class XRayCenterCrop(torch.nn.Module):
     def forward(self, img):
         return self.crop_center(img)
 
+SEED = 777
 
 DATASETS = [
     "MosMed",
@@ -90,6 +100,7 @@ class ModelEmbeddings():
                 {'ResNet': 'avgpool',  'DenseNet':'features', 'EfficientNet':'avgpool', 'MobileNetV2':'features', 'MobileNetV3':'features'}
         self.reduce = reduce
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        set_seed(SEED)
 
     def f_embed(self, model):
         #=============================================================================
@@ -136,7 +147,6 @@ class ModelEmbeddings():
         if len(s_check) > 0:
             print('[Model Sanity Check] not passed.', s_check)
             return s_check
-        
         
         _all_models = []
         for meta_dict in all_models:
@@ -185,7 +195,7 @@ class DatasetEmbeddings():
     def __init__(self, category = 'raw'):
         self.category = category
         self.resnet = torchvision.models.resnet18(pretrained=True)
-        
+        set_seed(SEED)
 
     def get_dataset_object(self, dataset, num_channels = 3, train_split = True):
 

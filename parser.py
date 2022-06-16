@@ -24,6 +24,7 @@ class Parser:
         self.parser.add_argument('--seed', type=int, default=777, help='seed for reproducibility')
         self.parser.add_argument('--n-epochs', type=int, default=10000, help='number of epochs')
         self.parser.add_argument('--batch-size', type=int, default=140, help='batch size')
+        self.parser.add_argument('--finetuning-batch-size', type=int, default=140, help='finetuning batch size')
         self.parser.add_argument('--n-groups', type=int, default=140, help='number of meta-training datasets')
         self.parser.add_argument('--n-nets', type=int, default=100, help='number of networks per dataset')
         self.parser.add_argument('--n-dims', type=int, default=128, help='dimension of model and query embedding')
